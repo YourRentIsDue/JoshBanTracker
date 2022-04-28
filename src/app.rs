@@ -1,5 +1,9 @@
 use eframe::{egui, epi};
 use chrono::prelude::*;
+use std::fs::{File, OpenOptions};
+use std::io::{Write, BufReader, BufRead, Error, stdout};
+
+
 
 
 
@@ -8,11 +12,9 @@ use chrono::prelude::*;
 #[cfg_attr(feature = "persistence", serde(default))] // if we add new fields, give them default values when deserializing old state
 
 pub struct Ban {
-    year: i32,
-    month: i32,
-    day: i32,
-    minute: i32,
-    hour: i32,
+    days: String,
+    hours: String,
+    mins: String,
 }
 
 pub struct TemplateApp {
@@ -25,7 +27,7 @@ pub struct TemplateApp {
     popup: bool,
     username: String,
     is_banned: bool,
-    ban: Option<Ban>,
+    ban: Ban,
 }
 
 impl Default for TemplateApp {
@@ -37,7 +39,11 @@ impl Default for TemplateApp {
             popup: false,
             username: "".to_owned(),
             is_banned: false,
-            ban: None,
+            ban: Ban {
+                days: "".to_string(),
+                hours: "".to_string(),
+                mins: "".to_string(),
+            },
         }
     }
 }
@@ -64,6 +70,7 @@ impl epi::App for TemplateApp {
             *self = epi::get_value(storage, epi::APP_KEY).unwrap_or_default()
         }
 
+
     }
 
     /// Called by the frame work to save state before shutdown.
@@ -77,10 +84,6 @@ impl epi::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
-        let Self { label, value, popup, username, is_banned, ban } = self;
-
-        
-        
         let window = egui::Window::new("Add");
 
         egui::SidePanel::left("add_acc_panel")
@@ -90,41 +93,82 @@ impl epi::App for TemplateApp {
                     self.popup = true;
                 }
             });
-        
 
         egui::CentralPanel::default().show(ctx, |ui| {
-
-
             if self.popup {
-                window.open(&mut self.popup).default_height(20.0).show(ctx, |ui| {
-                    ui.with_layout(egui::Layout::left_to_right(), |ui| {
-                        ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.username).hint_text("username"));
-                        ui.checkbox(&mut self.is_banned, "Is this account currently banned?");
-                        
-                    });
-                    //ui.add_space(50.0)
+                window.open(&mut self.popup)
+                    .default_height(20.0)
+                    .resize(|r| r.max_size([100.0,40.0]))
+                    .show(ctx, |ui| {
+                        ui.with_layout(egui::Layout::left_to_right(), |ui| { //username and banned checkbox
+                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.username).hint_text("Username"));
+                            ui.checkbox(&mut self.is_banned, "Is this account currently banned?");
+                            
+                        });
 
-                    if self.is_banned {
-                        //this is where I'd like two more TextEdits to go ideally.
-                    }
-                    
-                   
-                    
-                    
+                        if self.is_banned {
+                            
+                            ui.with_layout(egui::Layout::left_to_right(), |ui| {
+                                ui.separator();
+                                ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.days).hint_text("Days"));
+                                ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.hours).hint_text("Hours"));
+                                ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.mins).hint_text("Mins"));
+                            });
+                            
+                        }
+
+                        ui.separator();
+
+                        ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
+                            if ui.add_sized([100.0, 40.0], egui::Button::new("Save")).clicked() {
+                                let mut output:String = "username = ".to_string();
+                                output += &self.username;
+                                output += "\n";
+                                output += "is banned = ";
+
+                                if self.is_banned {
+                                    output += "true";
+                                    output += "\n";
+                                    output += "days = ";
+                                    output += &self.ban.days;
+                                    output += "\n";
+                                    output += "hours = ";
+                                    output += &self.ban.hours;
+                                    output += "\n";
+                                    output += "mins = ";
+                                    output += &self.ban.mins;
+                                }
+                                else {
+                                    output += "false";
+                                }
+                                output += "\n";
+                                output += "--ENDSMURF--";
+                                output += "\n";
+
+                                println!("{}", output);
+                                
+
+                                if let Err (_err) = write_file(output){
+                                    ui.label("There was an error writing the file");
+                                }            
+                            }
+                        });                   
                 });
             }
+
+            
         });
-
-        
-
-        
-        
-        
-
-
-
-
-
-
     }
 }
+
+pub fn write_file(output: String) -> std::result::Result<(), Box<dyn std::error::Error>>{
+    let mut file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .create(true)
+        .open("smurfs.txt")?;
+    file.write_all(output.as_bytes())?;
+    file.flush()?;
+    Ok(())
+}
+
