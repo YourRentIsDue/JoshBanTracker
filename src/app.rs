@@ -2,21 +2,18 @@ use eframe::{egui, epi};
 use chrono::prelude::*;
 use std::fs::{File, OpenOptions, self};
 use std::io::{Write, BufReader, BufRead, Error, stdout};
+use serde::{Deserialize, Serialize};
 
 
 
 
-
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "persistence", serde(default))] // if we add new fields, give them default values when deserializing old state
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Ban {
     days: String,
     hours: String,
     mins: String,
 }
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct User {
     username: String,
     is_banned: bool,
@@ -30,12 +27,9 @@ pub struct TemplateApp {
     label: String,
 
     // this how you opt-out of serialization of a member
-    #[cfg_attr(feature = "persistence", serde(skip))]
     value: f32,
     popup: bool,
-    username: String,
-    is_banned: bool,
-    ban: Ban,
+    user: User,
 }
 
 impl Default for TemplateApp {
@@ -45,13 +39,15 @@ impl Default for TemplateApp {
             label: "Hello World!".to_owned(),
             value: 2.7,
             popup: false,
-            username: "".to_owned(),
-            is_banned: false,
-            ban: Ban {
-                days: "0".to_string(),
-                hours: "0".to_string(),
-                mins: "0".to_string(),
-            },
+            user: User {
+                username: "".to_string(),
+                is_banned: false,
+                ban: Some(Ban {
+                    days: "0".to_string(),
+                    hours: "0".to_string(),
+                    mins: "0".to_string(),
+                }),
+            }
         }
     }
 }
@@ -71,23 +67,12 @@ impl epi::App for TemplateApp {
         _frame: &epi::Frame,
         _storage: Option<&dyn epi::Storage>,
     ) {
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        #[cfg(feature = "persistence")]
-        if let Some(storage) = _storage {
-            *self = epi::get_value(storage, epi::APP_KEY).unwrap_or_default()
-        }
 
 
     }
 
     /// Called by the frame work to save state before shutdown.
     /// Note that you must enable the `persistence` feature for this to work.
-    #[cfg(feature = "persistence")]
-    fn save(&mut self, storage: &mut dyn epi::Storage) {
-        epi::set_value(storage, epi::APP_KEY, self);
-    }
-
     
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
@@ -110,17 +95,17 @@ impl epi::App for TemplateApp {
                 .show(ctx, |ui| {
 
                     ui.with_layout(egui::Layout::left_to_right(), |ui| { //username and banned checkbox
-                        ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.username).hint_text("Username"));
-                        ui.checkbox(&mut self.is_banned, "Is this account currently banned?");           
+                        ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.user.username).hint_text("Username"));
+                        ui.checkbox(&mut self.user.is_banned, "Is this account currently banned?");           
                     });
 
-                    if self.is_banned {
+                    if self.user.is_banned {
                             
                         ui.with_layout(egui::Layout::left_to_right(), |ui| {
                             ui.separator();
-                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.days).hint_text("Days"));
-                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.hours).hint_text("Hours"));
-                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.mins).hint_text("Mins"));
+                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(self.user.ban.as_ref().unwrap().days).hint_text("Days"));
+                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.user.ban.unwrap().hours).hint_text("Hours"));
+                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.user.ban.unwrap().mins).hint_text("Mins"));
                         });
                             
                     }
@@ -130,36 +115,7 @@ impl epi::App for TemplateApp {
                     ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
                         if ui.add_sized([100.0, 40.0], egui::Button::new("Save")).clicked() {
 
-                            let mut output:String = "username = ".to_string();
-                            output += &self.username;
-                            output += "\n";
-                            output += "is banned = ";
-
-                            if self.is_banned {
-
-                                output += "true";
-                                output += "\n";
-                                output += "days = ";
-                                output += &self.ban.days;
-                                output += "\n";
-                                output += "hours = ";
-                                output += &self.ban.hours;
-                                output += "\n";
-                                output += "mins = ";
-                                output += &self.ban.mins;
-                            }
-                            else {
-                                output += "false";
-                            }
-
-                            output += "\n";
-                            output += "--ENDSMURF--";
-                            output += "\n";
-
-                            println!("{}", output);
-                                
-
-                            if let Err (_err) = write_file(output){
+                            if let Err (_err) = write_file(&self.user){
                                 ui.label("There was an error writing the file");
                             }            
                         }
@@ -170,23 +126,29 @@ impl epi::App for TemplateApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui|{
                 ui.separator();
-                if let Err (_err) = read_file(ui){
-                    ui.label("there was an error reading the file");
-                }
+                //if let Err (_err) = read_file(ui){
+                //    ui.label("there was an error reading the file");
+                //}
             });
             
         });
     }
 }
 
-pub fn write_file(output: String) -> std::result::Result<(), Box<dyn std::error::Error>>{
+pub fn write_file(user: &User) -> std::result::Result<(), Box<dyn std::error::Error>>{
+
+    let output_JSON = serde_json::to_string(user)?;
+    
     let mut file = OpenOptions::new()
         .write(true)
         .append(true)
         .create(true)
-        .open("smurfs.txt")?;
-    file.write_all(output.as_bytes())?;
+        .open("smurfs.json")?;
+    file.write_all(output_JSON.as_bytes())?;
     file.flush()?;
+    
+
+
     Ok(())
 }
 
