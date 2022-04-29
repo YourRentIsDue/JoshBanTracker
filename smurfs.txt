@@ -1,3 +1,0 @@
-username = a
-is banned = false
---ENDSMURF--

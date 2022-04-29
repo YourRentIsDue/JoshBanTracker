@@ -100,14 +100,21 @@ impl epi::App for TemplateApp {
                     });
 
                     if self.user.is_banned {
+
+                        let mut temp_ban = Ban {
+                            days: "0".to_string(),
+                            hours: "0".to_string(),
+                            mins: "0".to_string(),
+                        };
                             
                         ui.with_layout(egui::Layout::left_to_right(), |ui| {
                             ui.separator();
-                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(self.user.ban.as_ref().unwrap().days).hint_text("Days"));
-                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.user.ban.unwrap().hours).hint_text("Hours"));
-                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.user.ban.unwrap().mins).hint_text("Mins"));
-                        });
-                            
+                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut temp_ban.days).hint_text("Days"));
+                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut temp_ban.hours).hint_text("Hours"));
+                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut temp_ban.mins).hint_text("Mins"));
+
+                            self.user.ban = serde::__private::Some(temp_ban);
+                        });                           
                     }
 
                     ui.separator();
@@ -136,7 +143,6 @@ impl epi::App for TemplateApp {
 }
 
 pub fn write_file(user: &User) -> std::result::Result<(), Box<dyn std::error::Error>>{
-
     let output_JSON = serde_json::to_string(user)?;
     
     let mut file = OpenOptions::new()
@@ -147,8 +153,6 @@ pub fn write_file(user: &User) -> std::result::Result<(), Box<dyn std::error::Er
     file.write_all(output_JSON.as_bytes())?;
     file.flush()?;
     
-
-
     Ok(())
 }
 
