@@ -12,6 +12,7 @@ pub struct Ban {
     days: String,
     hours: String,
     mins: String,
+    start: String,
 }
 #[derive(Debug, Deserialize, Serialize)]
 pub struct User {
@@ -30,6 +31,7 @@ pub struct TemplateApp {
     value: f32,
     popup: bool,
     user: User,
+    ban: Ban,
 }
 
 impl Default for TemplateApp {
@@ -42,12 +44,9 @@ impl Default for TemplateApp {
             user: User {
                 username: "".to_string(),
                 is_banned: false,
-                ban: Some(Ban {
-                    days: "0".to_string(),
-                    hours: "0".to_string(),
-                    mins: "0".to_string(),
-                }),
-            }
+                ban: None,
+            },
+            ban: Ban { days: "0".to_string(), hours: "0".to_string(), mins: "0".to_string(), start: "".to_string() }
         }
     }
 }
@@ -105,15 +104,23 @@ impl epi::App for TemplateApp {
                             days: "0".to_string(),
                             hours: "0".to_string(),
                             mins: "0".to_string(),
+                            start: chrono::Local::now().to_rfc2822(),
                         };
                             
                         ui.with_layout(egui::Layout::left_to_right(), |ui| {
                             ui.separator();
-                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut temp_ban.days).hint_text("Days"));
-                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut temp_ban.hours).hint_text("Hours"));
-                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut temp_ban.mins).hint_text("Mins"));
+                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.days).hint_text("Days"));
+                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.hours).hint_text("Hours"));
+                            ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.mins).hint_text("Mins"));
+                            
+                            temp_ban.days = "".to_string();
+                            temp_ban.days += &self.ban.days;
+                            temp_ban.hours = "".to_string();
+                            temp_ban.hours += &self.ban.hours;
+                            temp_ban.mins = "".to_string();
+                            temp_ban.mins += &self.ban.mins;
 
-                            self.user.ban = serde::__private::Some(temp_ban);
+                            self.user.ban = Some(temp_ban);
                         });                           
                     }
 
@@ -133,126 +140,100 @@ impl epi::App for TemplateApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui|{
                 ui.separator();
-                //if let Err (_err) = read_file(ui){
-                //    ui.label("there was an error reading the file");
-                //}
-            });
-            
+                let mut users:Vec<User> = Vec::new();
+                if let Err (_err) = read_file(&mut users){
+                    ui.label("there was an error reading the file");         
+                }
+                display_users(&mut users, ui);
+            }); 
         });
     }
 }
 
 pub fn write_file(user: &User) -> std::result::Result<(), Box<dyn std::error::Error>>{
-    let output_JSON = serde_json::to_string(user)?;
+    let mut output_json = serde_json::to_string(user)?;
+    output_json += "\n";
     
     let mut file = OpenOptions::new()
         .write(true)
         .append(true)
         .create(true)
         .open("smurfs.json")?;
-    file.write_all(output_JSON.as_bytes())?;
+    file.write_all(output_json.as_bytes())?;
     file.flush()?;
     
     Ok(())
 }
 
-pub fn read_file(ui: &mut eframe::egui::Ui) -> std::result::Result<(), Box<dyn std::error::Error>> {
-    let file = File::open("smurfs.txt")?;
+pub fn read_file(users: &mut Vec<User>) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    
+    let file = File::open("smurfs.json")?;
     let reader = BufReader::new(file);
-
-    let mut users:Vec<User> = Vec::new();
-    let mut user_data:Vec<String> = Vec::new();
-    let mut user_2d:Vec<Vec<String>> = Vec::new(); 
 
     for (index, line) in reader.lines().enumerate() {
         let line = line?;
-        if line == "--ENDSMURF--" {
-            user_2d.push(user_data);
-            user_data = Vec::new();
-        }
-        else {
-            user_data.push(line);
-        }
+        users.push(serde_json::from_str(&line)?);
     }
-
-    for i in 0..user_2d.len() {
-        let mut temp = User {
-            username: "".to_string(),
-            is_banned: true,
-            ban: None
-        };
-
-        let mut temp_ban = Ban {
-            days: "".to_string(),
-            hours: "".to_string(),
-            mins: "".to_string() 
-        };
-
-        for j in 0..user_2d[i].len(){
-            if user_2d[i][j].contains("username") {
-                temp.username = user_2d[i][j].split("= ").collect::<Vec<&str>>()[1].to_string();
-            }
-
-            if user_2d[i][j].contains("is banned") {
-                if user_2d[i][j].split("= ").collect::<Vec<&str>>()[1] == "true" {
-                    temp.is_banned = true;
-                }
-                else {
-                    temp.is_banned = false;
-                }
-            }
-
-            if user_2d[i][j].contains("days") {
-                temp_ban.days = user_2d[i][j].split("= ").collect::<Vec<&str>>()[1].to_string();
-                
-            }
-            if user_2d[i][j].contains("hours") {
-                temp_ban.hours = user_2d[i][j].split("= ").collect::<Vec<&str>>()[1].to_string();
-            }
-            if user_2d[i][j].contains("mins") {
-                temp_ban.mins = user_2d[i][j].split("= ").collect::<Vec<&str>>()[1].to_string();
-                
-            }
-        }
-
-        if (temp_ban.days != ""){
-            temp.ban = Some(temp_ban);
-        }
-        users.push(temp);
-    }
-
-    for i in 0..users.len(){
-        
-        
+    Ok(())
+}
+pub fn display_users(users: &mut Vec<User>, ui:&mut eframe::egui::Ui) {
+    for user in users {
         ui.allocate_ui_with_layout( 
-            egui::vec2(400.0, 50.0),
+            egui::vec2(500.0, 10.0),
             egui::Layout::left_to_right(),
             |ui| {
-
-                ui.add_sized([100.0, 10.0], egui::Label::new("Username: ".to_owned() + &users[i].username));
-                if users[i].is_banned{
-                    ui.add_sized([100.0, 10.0], egui::Label::new("Banned: Yes"));
-                    
-                    let end_day:u32 = Local::now().day() + users[i].ban.as_ref().unwrap().days.parse::<u32>().unwrap();
-                    let end_month = Local::now().month();
-                    //if ()
-
-                    println!("{}", end_day);
-                    //ui.add_sized([100.0, 10.0], egui::Label::new("Banned: Yes"));
-                }
-                else {
-                    ui.add_sized([100.0, 10.0], egui::Label::new("Banned: No"));
-                }
-
-                
-            });
             
-        ui.separator();
-        
-        
-    }
-        
+            ui.add_sized([100.0, 10.0], egui::Label::new("Username: ".to_owned() + &user.username));
+            ui.separator();
+            
+            if user.is_banned {
+                ui.add_sized([100.0, 10.0], egui::Label::new("Banned: Yes"));
+                ui.separator();
+                let days:i32 = user.ban.as_ref().unwrap().days.parse().unwrap();
+                let hours:i32 = user.ban.as_ref().unwrap().hours.parse().unwrap();
+                let mins:i32 = user.ban.as_ref().unwrap().mins.parse().unwrap();
 
-    Ok(())
+                let dur_min = days*24*60 + hours*60 + mins;
+
+                let duration = chrono::Duration::minutes(dur_min.into());
+                
+                let today_millis = chrono::Local::now().timestamp_millis();
+
+                let start_milis = chrono::DateTime::parse_from_rfc2822(&user.ban.as_ref()
+                    .unwrap().start).unwrap().timestamp_millis();
+
+                let time_left = start_milis + duration.num_milliseconds() - today_millis;
+
+                let mut secs_left:i64 = time_left/1000;
+
+                let mut mins_left:i64 = secs_left/60;
+
+                secs_left = secs_left - mins_left*60;
+
+                let mut hours_left:i64 = mins_left/60;
+
+                mins_left = mins_left - hours_left*60;
+
+                let days_left:i64 = hours_left/24;
+
+                hours_left = hours_left - days_left*24;
+
+                if time_left > 0 {
+                    ui.add_sized([100.0, 10.0], egui::Label::new("Days left: ".to_owned() + &days_left.to_string()));
+                    ui.separator();
+                    ui.add_sized([100.0, 10.0], egui::Label::new("hours left: ".to_owned() + &hours_left.to_string()));
+                    ui.separator();
+                    ui.add_sized([100.0, 10.0], egui::Label::new("mins left: ".to_owned() + &mins_left.to_string()));
+                    ui.separator();
+                    ui.add_sized([100.0, 10.0], egui::Label::new("secs left: ".to_owned() + &secs_left.to_string()));
+                    
+                } 
+            }
+            else {
+                ui.add_sized([100.0, 10.0], egui::Label::new("Banned: No"));
+            }
+        });
+        ui.separator();
+    }
 }
 
