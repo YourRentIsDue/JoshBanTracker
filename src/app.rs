@@ -129,7 +129,7 @@ impl epi::App for TemplateApp {
                     ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
                         if ui.add_sized([100.0, 40.0], egui::Button::new("Save")).clicked() {
 
-                            if let Err (_err) = write_file(&self.user){
+                            if let Err (_err) = write_file(&self.user, true){
                                 ui.label("There was an error writing the file");
                             }            
                         }
@@ -141,26 +141,56 @@ impl epi::App for TemplateApp {
             egui::ScrollArea::vertical().show(ui, |ui|{
                 ui.separator();
                 let mut users:Vec<User> = Vec::new();
+                let mut edited = false;
                 if let Err (_err) = read_file(&mut users){
                     ui.label("there was an error reading the file");         
                 }
-                display_users(&mut users, ui);
+                let edited = display_users(&mut users, ui);
+
+
+                if (edited){
+                    println!("runs");
+                    if let Err (_err) = write_file(&users[0], false) {
+                        ui.label("There was an error writing the file");
+                    }
+                
+                
+                    for i in 1..users.len() {
+                        if let Err (_err) = write_file(&users[i], true){
+                            ui.label("There was an error writing the file");
+                        }
+                    }
+
+                }
+                
+
             }); 
         });
     }
 }
 
-pub fn write_file(user: &User) -> std::result::Result<(), Box<dyn std::error::Error>>{
+pub fn write_file(user: &User, append: bool) -> std::result::Result<(), Box<dyn std::error::Error>>{
+
     let mut output_json = serde_json::to_string(user)?;
+    //println!("{} ", output_json);
     output_json += "\n";
-    
-    let mut file = OpenOptions::new()
-        .write(true)
-        .append(true)
-        .create(true)
-        .open("smurfs.json")?;
-    file.write_all(output_json.as_bytes())?;
-    file.flush()?;
+
+    if (append){      
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open("smurfs.json")?;
+        file.write_all(output_json.as_bytes())?;
+        file.flush()?;
+    }
+    else {
+        let mut file = fs::File::create("smurfs.json")?;
+
+        file.write_all(output_json.as_bytes())?;
+        file.flush()?;
+    }
+
     
     Ok(())
 }
@@ -176,27 +206,40 @@ pub fn read_file(users: &mut Vec<User>) -> std::result::Result<(), Box<dyn std::
     }
     Ok(())
 }
-pub fn display_users(users: &mut Vec<User>, ui:&mut eframe::egui::Ui) {
+pub fn display_users(users: &mut Vec<User>, ui:&mut eframe::egui::Ui) -> bool{
+
+    let mut edited = false;
+
     for user in users {
+        ui.allocate_ui_with_layout( 
+            egui::vec2(200.0, 10.0),
+            egui::Layout::left_to_right(),
+            |ui| {
+            
+            ui.add_sized([100.0, 10.0], egui::Label::new("Username: ".to_owned() + &user.username));
+
+            
+        });
+
+        ui.add_space(20.0);
+    
+
         ui.allocate_ui_with_layout( 
             egui::vec2(500.0, 10.0),
             egui::Layout::left_to_right(),
             |ui| {
             
-            ui.add_sized([100.0, 10.0], egui::Label::new("Username: ".to_owned() + &user.username));
-            ui.separator();
-            
+                
             if user.is_banned {
-                ui.add_sized([100.0, 10.0], egui::Label::new("Banned: Yes"));
-                ui.separator();
+
                 let days:i32 = user.ban.as_ref().unwrap().days.parse().unwrap();
                 let hours:i32 = user.ban.as_ref().unwrap().hours.parse().unwrap();
                 let mins:i32 = user.ban.as_ref().unwrap().mins.parse().unwrap();
-
+            
                 let dur_min = days*24*60 + hours*60 + mins;
 
                 let duration = chrono::Duration::minutes(dur_min.into());
-                
+            
                 let today_millis = chrono::Local::now().timestamp_millis();
 
                 let start_milis = chrono::DateTime::parse_from_rfc2822(&user.ban.as_ref()
@@ -219,6 +262,9 @@ pub fn display_users(users: &mut Vec<User>, ui:&mut eframe::egui::Ui) {
                 hours_left = hours_left - days_left*24;
 
                 if time_left > 0 {
+
+                    ui.add_sized([100.0, 10.0], egui::Label::new("Banned: Yes"));
+                    ui.separator();
                     ui.add_sized([100.0, 10.0], egui::Label::new("Days left: ".to_owned() + &days_left.to_string()));
                     ui.separator();
                     ui.add_sized([100.0, 10.0], egui::Label::new("hours left: ".to_owned() + &hours_left.to_string()));
@@ -226,14 +272,26 @@ pub fn display_users(users: &mut Vec<User>, ui:&mut eframe::egui::Ui) {
                     ui.add_sized([100.0, 10.0], egui::Label::new("mins left: ".to_owned() + &mins_left.to_string()));
                     ui.separator();
                     ui.add_sized([100.0, 10.0], egui::Label::new("secs left: ".to_owned() + &secs_left.to_string()));
+                    ui.separator();
+                    
                     
                 } 
+                else {
+                    ui.add_sized([100.0, 10.0], egui::Label::new("Banned: No"));
+                    user.is_banned = false;
+                    user.ban = None;
+                    edited = true;
+                }
             }
             else {
                 ui.add_sized([100.0, 10.0], egui::Label::new("Banned: No"));
-            }
+            }  
         });
+        
+    
         ui.separator();
+        
     }
-}
+    return edited;
+}  
 
