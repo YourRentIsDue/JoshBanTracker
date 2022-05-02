@@ -7,14 +7,14 @@ use serde::{Deserialize, Serialize};
 
 
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Ban {
     days: String,
     hours: String,
     mins: String,
     start: String,
 }
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct User {
     username: String,
     is_banned: bool,
@@ -30,8 +30,11 @@ pub struct TemplateApp {
     // this how you opt-out of serialization of a member
     value: f32,
     popup: bool,
+    edit_popup: bool,
     user: User,
     ban: Ban,
+    users: Vec<User>,
+    selected: usize,
 }
 
 impl Default for TemplateApp {
@@ -41,12 +44,15 @@ impl Default for TemplateApp {
             label: "Hello World!".to_owned(),
             value: 2.7,
             popup: false,
+            edit_popup: false,
             user: User {
                 username: "".to_string(),
                 is_banned: false,
                 ban: None,
             },
-            ban: Ban { days: "0".to_string(), hours: "0".to_string(), mins: "0".to_string(), start: "".to_string() }
+            ban: Ban { days: "0".to_string(), hours: "0".to_string(), mins: "0".to_string(), start: "".to_string() },
+            users: Vec::new(),
+            selected: 0,
         }
     }
 }
@@ -66,7 +72,7 @@ impl epi::App for TemplateApp {
         _frame: &epi::Frame,
         _storage: Option<&dyn epi::Storage>,
     ) {
-
+        read_file(&mut self.users);
 
     }
 
@@ -84,9 +90,13 @@ impl epi::App for TemplateApp {
                 if ui.add_sized([100.0, 40.0], egui::Button::new("Add account")).clicked() {
                     self.popup = true;
                 }
+                ui.add_space(3.0);
+                edit_users(&mut self.users, ctx, ui, &mut self.edit_popup, &mut self.selected);
             });
 
         
+        
+
         if self.popup {
             window.open(&mut self.popup)
                 .default_height(20.0)
@@ -128,7 +138,7 @@ impl epi::App for TemplateApp {
 
                     ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
                         if ui.add_sized([100.0, 40.0], egui::Button::new("Save")).clicked() {
-
+                            self.users.push(self.user.clone());
                             if let Err (_err) = write_file(&self.user, true){
                                 ui.label("There was an error writing the file");
                             }            
@@ -146,8 +156,7 @@ impl epi::App for TemplateApp {
                     ui.label("there was an error reading the file");         
                 }
                 let edited = display_users(&mut users, ui);
-
-
+                
                 if (edited){
                     println!("runs");
                     if let Err (_err) = write_file(&users[0], false) {
@@ -295,3 +304,106 @@ pub fn display_users(users: &mut Vec<User>, ui:&mut eframe::egui::Ui) -> bool{
     return edited;
 }  
 
+pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui, popup: &mut bool, selected: &mut usize) {
+
+    if ui.add_sized([100.0, 40.0], egui::Button::new("Edit Accounts")).clicked() {
+        *popup = true;
+    }
+
+    
+
+    if *popup {
+        egui::Window::new("Edit").open(popup)
+        .default_height(20.0)
+        .resize(|r| r.max_size([150.0,40.0]))
+        .show(ctx, |ui| {
+
+            let mut names = Vec::new();
+
+            for user in users.clone() {
+                names.push(user.username.clone());
+            }
+
+            egui::ComboBox::from_label("Is being edited").show_index(
+                ui,
+                selected,
+                names.len(),
+                |i| names[i].to_owned());
+            
+
+         
+            ui.with_layout(egui::Layout::left_to_right(), |ui| { //username and banned checkbox
+                ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut users[*selected].username).hint_text("Username"));
+                ui.checkbox(&mut users[*selected].is_banned, "Is this account currently banned?");           
+            });
+            
+
+            if users[*selected].is_banned {     
+                
+                match users[*selected].ban {
+                    None => {
+                        users[*selected].ban = Some(Ban { days: "0".to_string(), hours: "0".to_string(), mins: "0".to_string(), start: "0".to_string() }) 
+                    }
+                    _ => {}
+                }
+
+                ui.with_layout(egui::Layout::left_to_right(), |ui| {
+                    ui.separator();
+                    ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut users[*selected].ban.as_mut().unwrap().days).hint_text("Days"));
+                    ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut users[*selected].ban.as_mut().unwrap().hours).hint_text("Hours"));
+                    ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut users[*selected].ban.as_mut().unwrap().mins).hint_text("Mins"));
+                });  
+                                     
+            }
+ 
+            ui.separator();
+
+            ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
+                if ui.add_sized([100.0, 40.0], egui::Button::new("Save")).clicked() {
+
+                        
+                    if users[0].is_banned {
+
+                        match users[0].ban {
+                            Some(_) =>{
+                                if let Err (_err) = write_file(&users[0], false){
+                                    println!("There was an error writing to the file");  
+                                }
+                            }
+                            _=> {}
+                        } 
+                    }
+                    else {
+                        if let Err (_err) = write_file(&users[0], false){
+                            println!("There was an error writing to the file");  
+                        }
+                    }
+
+
+                    for i in 1..users.len(){
+
+                        if users[i].is_banned {
+                            
+                            match users[i].ban {
+                                Some(_) => {
+                                    if let Err (_err) = write_file(&users[i], true){
+                                        println!("There was an error writing to the file");  
+                                    }
+                                }
+                                _=> {}
+                            }
+                        }
+                        else {
+                            if let Err (_err) = write_file(&users[i], true){
+                                println!("There was an error writing to the file");  
+                            } 
+                        }
+                    }
+                                   
+                }
+            });                
+    });
+    }
+
+
+}
