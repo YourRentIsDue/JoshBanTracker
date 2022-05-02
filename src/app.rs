@@ -123,11 +123,27 @@ impl epi::App for TemplateApp {
                             ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.hours).hint_text("Hours"));
                             ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut self.ban.mins).hint_text("Mins"));
                             
-                            temp_ban.days = "".to_string();
+                            if &self.ban.days == "" {
+                                temp_ban.days = "0".to_string();
+                            }
+                            else {
+                                temp_ban.days = "".to_string();
+                            }
+                            if &self.ban.hours == "" {
+                                temp_ban.hours = "0".to_string();
+                            }
+                            else {
+                                temp_ban.hours = "".to_string();
+                            }
+                            if &self.ban.mins == "" {
+                                temp_ban.mins = "0".to_string();
+                            }
+                            else {
+                                temp_ban.mins = "".to_string();
+                            }
+
                             temp_ban.days += &self.ban.days;
-                            temp_ban.hours = "".to_string();
                             temp_ban.hours += &self.ban.hours;
-                            temp_ban.mins = "".to_string();
                             temp_ban.mins += &self.ban.mins;
 
                             self.user.ban = Some(temp_ban);
@@ -353,6 +369,7 @@ pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui
                     ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut users[*selected].ban.as_mut().unwrap().hours).hint_text("Hours"));
                     ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut users[*selected].ban.as_mut().unwrap().mins).hint_text("Mins"));
                 });
+
                                      
             }
  
@@ -366,6 +383,16 @@ pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui
                         if users[i].is_banned{
                             if users[i].ban.as_mut().unwrap().start == "0" {
                                 users[i].ban.as_mut().unwrap().start = chrono::Local::now().to_rfc2822();
+                            }
+                        
+                            if users[i].ban.as_mut().unwrap().days == "".to_string() {
+                                users[i].ban.as_mut().unwrap().days = "0".to_string();
+                            }
+                            if users[i].ban.as_mut().unwrap().hours == "".to_string() {
+                                users[i].ban.as_mut().unwrap().hours = "0".to_string();
+                            }
+                            if users[i].ban.as_mut().unwrap().mins == "".to_string() {
+                                users[i].ban.as_mut().unwrap().mins = "0".to_string();
                             }
                         }
                     }
