@@ -154,10 +154,33 @@ impl epi::App for TemplateApp {
 
                     ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
                         if ui.add_sized([100.0, 40.0], egui::Button::new("Save")).clicked() {
-                            self.users.push(self.user.clone());
-                            if let Err (_err) = write_file(&self.user, true){
-                                ui.label("There was an error writing the file");
-                            }            
+
+                            let mut proper = true;
+                            if self.user.is_banned {
+                                for char in self.user.ban.as_ref().unwrap().days.chars() {
+                                    if !char.is_numeric() {
+                                        proper = false;
+                                    }
+                                }
+                                for char in self.user.ban.as_ref().unwrap().hours.chars() {
+                                    if !char.is_numeric() {
+                                        proper = false;
+                                    }
+                                }
+                                for char in self.user.ban.as_ref().unwrap().mins.chars() {
+                                    if !char.is_numeric() {
+                                        proper = false;
+                                    }
+                                }
+                            }
+
+                            if proper {
+
+                                self.users.push(self.user.clone());
+                                if let Err (_err) = write_file(&self.user, true){
+                                    ui.label("There was an error writing the file");
+                                }   
+                            }
                         }
                     });                   
             });
@@ -378,6 +401,7 @@ pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui
             ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
                 if ui.add_sized([100.0, 40.0], egui::Button::new("Save")).clicked() {
 
+                    let mut proper = true;
 
                     for i in 0..users.len() {
                         if users[i].is_banned{
@@ -394,19 +418,35 @@ pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui
                             if users[i].ban.as_mut().unwrap().mins == "".to_string() {
                                 users[i].ban.as_mut().unwrap().mins = "0".to_string();
                             }
+                            for char in users[i].ban.as_mut().unwrap().days.chars() {
+                                if !char.is_numeric() {
+                                    proper = false;
+                                }
+                            }
+                            for char in users[i].ban.as_mut().unwrap().hours.chars() {
+                                if !char.is_numeric() {
+                                    proper = false;
+                                }
+                            }
+                            for char in users[i].ban.as_mut().unwrap().mins.chars() {
+                                if !char.is_numeric() {
+                                    proper = false;
+                                }
+                            }
                         }
                     }
 
-            
-                    if let Err (_err) = write_file(&users[0], false){
-                        println!("There was an error writing to the file");  
-                    }
-        
-                    for i in 1..users.len(){
-
-                            
-                        if let Err (_err) = write_file(&users[i], true){
+                    if proper {
+                        if let Err (_err) = write_file(&users[0], false){
                             println!("There was an error writing to the file");  
+                        }
+            
+                        for i in 1..users.len(){
+
+                                
+                            if let Err (_err) = write_file(&users[i], true){
+                                println!("There was an error writing to the file");  
+                            }
                         }
                     }                       
                 }
