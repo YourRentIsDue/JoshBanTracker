@@ -31,6 +31,8 @@ pub struct TemplateApp {
     value: f32,
     popup: bool,
     edit_popup: bool,
+    confirmation_popup: bool,
+    confirmation_popup_closer: bool,
     user: User,
     ban: Ban,
     users: Vec<User>,
@@ -45,12 +47,14 @@ impl Default for TemplateApp {
             value: 2.7,
             popup: false,
             edit_popup: false,
+            confirmation_popup: false,
+            confirmation_popup_closer: false,
             user: User {
                 username: "".to_string(),
                 is_banned: false,
                 ban: None,
             },
-            ban: Ban { days: "0".to_string(), hours: "0".to_string(), mins: "0".to_string(), start: "".to_string() },
+            ban: Ban { days: "".to_string(), hours: "".to_string(), mins: "".to_string(), start: "".to_string() },
             users: Vec::new(),
             selected: 0,
         }
@@ -62,7 +66,7 @@ impl Default for TemplateApp {
 
 impl epi::App for TemplateApp {
     fn name(&self) -> &str {
-        "eframe template"
+        "Bannus Trackus"
     }
 
     /// Called once before the first frame.
@@ -82,6 +86,23 @@ impl epi::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
+
+
+        
+
+        egui::TopBottomPanel::top("my_panel")
+        .min_height(70.0)
+        .frame(egui::Frame::none()
+                .fill(egui::Color32::from_rgba_premultiplied(185, 65, 127, 1))
+        )
+        .show(ctx, |ui| {
+            ui.centered_and_justified(|ui|{
+                ui.label(egui::RichText::new("Bannus Trackus").color(egui::Color32::WHITE).font(egui::FontId::proportional(60.0)));
+            });
+
+            
+         });
+
         let window = egui::Window::new("Add");
 
         egui::SidePanel::left("add_acc_panel")
@@ -91,7 +112,7 @@ impl epi::App for TemplateApp {
                     self.popup = true;
                 }
                 ui.add_space(3.0);
-                edit_users(&mut self.users, ctx, ui, &mut self.edit_popup, &mut self.selected);
+                edit_users(&mut self.users, ctx, ui, &mut self.edit_popup, &mut self.selected, &mut self.confirmation_popup, &mut self.confirmation_popup_closer);
             });
 
         
@@ -155,20 +176,29 @@ impl epi::App for TemplateApp {
                     ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
                         if ui.add_sized([100.0, 40.0], egui::Button::new("Save")).clicked() {
 
+                            let mut day_digits = 0;
+                            let mut hours_digits = 0;
+                            let mut mins_digits = 0;
+
+
                             let mut proper = true;
                             if self.user.is_banned {
+
                                 for char in self.user.ban.as_ref().unwrap().days.chars() {
-                                    if !char.is_numeric() {
+                                    day_digits += 1;
+                                    if !char.is_numeric() || day_digits > 3 {
                                         proper = false;
                                     }
                                 }
                                 for char in self.user.ban.as_ref().unwrap().hours.chars() {
-                                    if !char.is_numeric() {
+                                    hours_digits += 1;
+                                    if !char.is_numeric() || hours_digits > 3 {
                                         proper = false;
                                     }
                                 }
                                 for char in self.user.ban.as_ref().unwrap().mins.chars() {
-                                    if !char.is_numeric() {
+                                    mins_digits += 1;
+                                    if !char.is_numeric() || mins_digits > 3 {
                                         proper = false;
                                     }
                                 }
@@ -177,7 +207,7 @@ impl epi::App for TemplateApp {
                             if proper {
 
                                 self.users.push(self.user.clone());
-                                if let Err (_err) = write_file(&self.user, true){
+                                if let Err (_err) = write_file(Some(&self.user), true){
                                     ui.label("There was an error writing the file");
                                 }   
                             }
@@ -192,19 +222,19 @@ impl epi::App for TemplateApp {
                 let mut users:Vec<User> = Vec::new();
                 let mut edited = false;
                 if let Err (_err) = read_file(&mut users){
-                    ui.label("there was an error reading the file");         
+                    //ui.label("there was an error reading the file");         
                 }
                 let edited = display_users(&mut users, ui);
                 
                 if (edited){
                     println!("runs");
-                    if let Err (_err) = write_file(&users[0], false) {
+                    if let Err (_err) = write_file(Some(&users[0]), false) {
                         ui.label("There was an error writing the file");
                     }
                 
                 
                     for i in 1..users.len() {
-                        if let Err (_err) = write_file(&users[i], true){
+                        if let Err (_err) = write_file(Some(&users[i]), true){
                             ui.label("There was an error writing the file");
                         }
                     }
@@ -217,27 +247,37 @@ impl epi::App for TemplateApp {
     }
 }
 
-pub fn write_file(user: &User, append: bool) -> std::result::Result<(), Box<dyn std::error::Error>>{
+pub fn write_file(user: Option<&User>, append: bool) -> std::result::Result<(), Box<dyn std::error::Error>>{
 
-    let mut output_json = serde_json::to_string(user)?;
-    //println!("{} ", output_json);
-    output_json += "\n";
-
-    if (append){      
-        let mut file = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open("smurfs.json")?;
-        file.write_all(output_json.as_bytes())?;
-        file.flush()?;
+    match user {
+        Some(user) => {
+            let mut output_json = serde_json::to_string(user)?;
+            //println!("{} ", output_json);
+            output_json += "\n";
+        
+            if append{      
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .append(true)
+                    .create(true)
+                    .open("smurfs.json")?;
+                file.write_all(output_json.as_bytes())?;
+                file.flush()?;
+            }
+            else {
+                let mut file = fs::File::create("smurfs.json")?;
+        
+                file.write_all(output_json.as_bytes())?;
+                file.flush()?;
+            }
+        }
+        None => {
+            let mut file = fs::File::create("smurfs.json")?;
+            file.flush();
+        },
     }
-    else {
-        let mut file = fs::File::create("smurfs.json")?;
 
-        file.write_all(output_json.as_bytes())?;
-        file.flush()?;
-    }
+
 
     
     Ok(())
@@ -343,10 +383,15 @@ pub fn display_users(users: &mut Vec<User>, ui:&mut eframe::egui::Ui) -> bool{
     return edited;
 }  
 
-pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui, popup: &mut bool, selected: &mut usize) {
+pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui, popup: &mut bool, selected: &mut usize, confirmation_popup: &mut bool, confirmation_popup_closer: &mut bool) {
+
+
+    println!("{}", users.len());
 
     if ui.add_sized([100.0, 40.0], egui::Button::new("Edit Accounts")).clicked() {
-        *popup = true;
+        if users.len() != 0{
+            *popup = true;
+        }
     }
 
     
@@ -362,6 +407,8 @@ pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui
             for user in users.clone() {
                 names.push(user.username.clone());
             }
+
+            if names.len() > 0{
 
             egui::ComboBox::from_label("Is being edited").show_index(
                 ui,
@@ -401,56 +448,89 @@ pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui
             ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
                 if ui.add_sized([100.0, 40.0], egui::Button::new("Save")).clicked() {
 
-                    let mut proper = true;
+                    update_smurfs(users);
+                }
+                if ui.add_sized([100.0, 40.0], egui::Button::new("Delete")).clicked() {
+                    *confirmation_popup_closer = true; 
+                }
+            });
+            } 
+        });
+    }
 
-                    for i in 0..users.len() {
-                        if users[i].is_banned{
-                            if users[i].ban.as_mut().unwrap().start == "0" {
-                                users[i].ban.as_mut().unwrap().start = chrono::Local::now().to_rfc2822();
-                            }
+    *confirmation_popup = *confirmation_popup_closer;
+
+    if *confirmation_popup{
+        egui::Window::new("Are you sure?").open(confirmation_popup)
+            .default_height(20.0)
+            .resize(|r| r.max_size([150.0, 40.0]))
+            .show(ctx, |ui| {
+                if ui.add_sized([200.0, 40.0], egui::Button::new("Yes")).clicked() {
+                    if users.len() > 1 {
+                        users.remove(*selected);
                         
-                            if users[i].ban.as_mut().unwrap().days == "".to_string() {
-                                users[i].ban.as_mut().unwrap().days = "0".to_string();
-                            }
-                            if users[i].ban.as_mut().unwrap().hours == "".to_string() {
-                                users[i].ban.as_mut().unwrap().hours = "0".to_string();
-                            }
-                            if users[i].ban.as_mut().unwrap().mins == "".to_string() {
-                                users[i].ban.as_mut().unwrap().mins = "0".to_string();
-                            }
-                            for char in users[i].ban.as_mut().unwrap().days.chars() {
-                                if !char.is_numeric() {
-                                    proper = false;
-                                }
-                            }
-                            for char in users[i].ban.as_mut().unwrap().hours.chars() {
-                                if !char.is_numeric() {
-                                    proper = false;
-                                }
-                            }
-                            for char in users[i].ban.as_mut().unwrap().mins.chars() {
-                                if !char.is_numeric() {
-                                    proper = false;
-                                }
-                            }
-                        }
+                    }
+                    else {
+                        *users = Vec::new();
                     }
 
-                    if proper {
-                        if let Err (_err) = write_file(&users[0], false){
-                            println!("There was an error writing to the file");  
-                        }
-            
-                        for i in 1..users.len(){
-
-                                
-                            if let Err (_err) = write_file(&users[i], true){
-                                println!("There was an error writing to the file");  
-                            }
-                        }
-                    }                       
+                    update_smurfs(users);
+                    *confirmation_popup_closer = false;
                 }
-            });                
-        });
+
+            });
+    }
+
+}
+
+pub fn update_smurfs (users:&mut Vec<User>) {
+    let mut proper = true;
+
+    for i in 0..users.len() {
+        if users[i].is_banned{
+            if users[i].ban.as_mut().unwrap().start == "0" {
+                users[i].ban.as_mut().unwrap().start = chrono::Local::now().to_rfc2822();
+            }
+        
+            if users[i].ban.as_mut().unwrap().days == "".to_string() {
+                users[i].ban.as_mut().unwrap().days = "0".to_string();
+            }
+            if users[i].ban.as_mut().unwrap().hours == "".to_string() {
+                users[i].ban.as_mut().unwrap().hours = "0".to_string();
+            }
+            if users[i].ban.as_mut().unwrap().mins == "".to_string() {
+                users[i].ban.as_mut().unwrap().mins = "0".to_string();
+            }
+            for char in users[i].ban.as_mut().unwrap().days.chars() {
+                if !char.is_numeric() {
+                    proper = false;
+                }
+            }
+            for char in users[i].ban.as_mut().unwrap().hours.chars() {
+                if !char.is_numeric() {
+                    proper = false;
+                }
+            }
+            for char in users[i].ban.as_mut().unwrap().mins.chars() {
+                if !char.is_numeric() {
+                    proper = false;
+                }
+            }
+        }
+    }
+    if users.len() > 0{
+        if proper {
+            if let Err (_err) = write_file(Some(&users[0]), false){
+                println!("There was an error writing to the file");  
+            }
+
+            for i in 1..users.len(){
+
+                    
+                if let Err (_err) = write_file(Some(&users[i]), true){
+                    println!("There was an error writing to the file");  
+                }
+            }
+        }
     }
 }
