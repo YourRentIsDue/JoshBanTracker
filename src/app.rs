@@ -352,7 +352,7 @@ pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui
                     ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut users[*selected].ban.as_mut().unwrap().days).hint_text("Days"));
                     ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut users[*selected].ban.as_mut().unwrap().hours).hint_text("Hours"));
                     ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut users[*selected].ban.as_mut().unwrap().mins).hint_text("Mins"));
-                });  
+                });
                                      
             }
  
@@ -361,49 +361,29 @@ pub fn edit_users (users: &mut Vec<User>, ctx: &egui::Context, ui: &mut egui::Ui
             ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
                 if ui.add_sized([100.0, 40.0], egui::Button::new("Save")).clicked() {
 
-                        
-                    if users[0].is_banned {
 
-                        match users[0].ban {
-                            Some(_) =>{
-                                if let Err (_err) = write_file(&users[0], false){
-                                    println!("There was an error writing to the file");  
-                                }
+                    for i in 0..users.len() {
+                        if users[i].is_banned{
+                            if users[i].ban.as_mut().unwrap().start == "0" {
+                                users[i].ban.as_mut().unwrap().start = chrono::Local::now().to_rfc2822();
                             }
-                            _=> {}
-                        } 
-                    }
-                    else {
-                        if let Err (_err) = write_file(&users[0], false){
-                            println!("There was an error writing to the file");  
                         }
                     }
 
-
+            
+                    if let Err (_err) = write_file(&users[0], false){
+                        println!("There was an error writing to the file");  
+                    }
+        
                     for i in 1..users.len(){
 
-                        if users[i].is_banned {
                             
-                            match users[i].ban {
-                                Some(_) => {
-                                    if let Err (_err) = write_file(&users[i], true){
-                                        println!("There was an error writing to the file");  
-                                    }
-                                }
-                                _=> {}
-                            }
+                        if let Err (_err) = write_file(&users[i], true){
+                            println!("There was an error writing to the file");  
                         }
-                        else {
-                            if let Err (_err) = write_file(&users[i], true){
-                                println!("There was an error writing to the file");  
-                            } 
-                        }
-                    }
-                                   
+                    }                       
                 }
             });                
-    });
+        });
     }
-
-
 }
